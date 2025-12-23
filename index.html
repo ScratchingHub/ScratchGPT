@@ -1,29 +1,119 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ScratchGPT</title>
 <style>
-body{background:#0f172a;font-family:Arial;color:white;display:flex;justify-content:center;align-items:center;height:100vh}
-#chat{width:400px;background:#020617;border-radius:14px;padding:15px;box-shadow:0 0 25px black}
-#msgs{height:340px;overflow-y:auto;margin-bottom:10px}
-.msg{margin:8px 0;line-height:1.4}
-.user{color:#38bdf8}
-.bot{color:#a3e635}
-input{width:100%;padding:10px;border:none;border-radius:8px}
+/* Body & general layout */
+body {
+  background: #0f172a;
+  font-family: Arial, sans-serif;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+}
+
+/* Chat container */
+#chat {
+  width: 90%;
+  max-width: 500px;
+  background: #020617;
+  border-radius: 14px;
+  padding: 15px;
+  box-shadow: 0 0 25px black;
+  display: flex;
+  flex-direction: column;
+  height: 90vh;
+}
+
+/* Chat messages */
+#msgs {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.msg {
+  margin: 8px 0;
+  line-height: 1.4;
+}
+
+.user { color: #38bdf8; }
+.bot { color: #a3e635; }
+
+/* Input and button */
+#inputContainer {
+  display: flex;
+  gap: 8px;
+}
+
+#q {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+#sendBtn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #38bdf8;
+  color: #000;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#sendBtn:hover {
+  background: #0ea5e9;
+}
+
+/* Step-by-step list */
+ul {
+  padding-left: 20px;
+  margin: 5px 0;
+}
+
+/* Responsive adjustments */
+@media(max-width: 400px){
+  #chat {
+    padding: 10px;
+  }
+  #q {
+    font-size: 14px;
+  }
+  #sendBtn {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+}
 </style>
 </head>
 <body>
+
 <div id="chat">
   <div id="msgs">
     <div class="msg bot">🤖 Hello! I am ScratchGPT.</div>
   </div>
-  <input id="q" placeholder="Ask anything about Scratch..." />
+  <div id="inputContainer">
+    <input id="q" placeholder="Ask anything about Scratch..." />
+    <button id="sendBtn">Send</button>
+  </div>
 </div>
 
 <script>
+// Elements
 const q = document.getElementById("q");
 const msgs = document.getElementById("msgs");
+const sendBtn = document.getElementById("sendBtn");
+
+// Learned answers memory
 let learned = JSON.parse(localStorage.getItem("scratchGPT_learned")||"{}");
 
 // Step-by-step examples
@@ -35,26 +125,19 @@ const stepExamples = {
   "Cloning":["1️⃣ Use 'create clone' block","2️⃣ Use 'when I start as clone' to define behavior"]
 };
 
-q.addEventListener("keydown", e=>{
-  if(e.key==="Enter" && q.value.trim()){
-    const question = q.value.trim();
-    userMsg(question);
-    aiReply(question);
-    q.value="";
-  }
-});
-
-function add(type,text){
-  const d=document.createElement("div");
-  d.className="msg "+type;
-  d.innerHTML=text;
+// Add message to chat
+function add(type, text){
+  const d = document.createElement("div");
+  d.className = "msg " + type;
+  d.innerHTML = text;
   msgs.appendChild(d);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-function userMsg(text){ add("user","👤 "+text); }
-function botMsg(text){ add("bot","🤖 "+text); }
+function userMsg(text){ add("user", "👤 " + text); }
+function botMsg(text){ add("bot", "🤖 " + text); }
 
+// Detect Scratch topic
 function detectTopic(q){
   q = q.toLowerCase();
   const map = { "variable":"Variables", "broadcast":"Broadcast", "clone":"Cloning",
@@ -64,24 +147,28 @@ function detectTopic(q){
   return null;
 }
 
+// Fetch from backend
 async function fetchWiki(topic){
   const res = await fetch(`/api/wiki?q=${topic}`);
   const data = await res.json();
   return data.text;
 }
 
+// Build short answer
 function buildAnswer(text){ return text.split(".").slice(0,4).join(". ") + "."; }
 
+// Add steps to answer
 function enhancedAnswer(topic, answerText){
   let html = `<b>📘 Answer:</b> ${answerText}<br>`;
   if(stepExamples[topic]){
     html += `<b>Step-by-step:</b><ul>`;
     stepExamples[topic].forEach(s=>html+=`<li>${s}</li>`);
-    html+="</ul>";
+    html += "</ul>";
   }
   return html;
 }
 
+// AI reply
 async function aiReply(question){
   for(let key in learned){
     if(question.toLowerCase().includes(key)){
@@ -105,14 +192,36 @@ async function aiReply(question){
 
   if(!learned[topic.toLowerCase()]){
     learned[topic.toLowerCase()] = html;
-    localStorage.setItem("scratchGPT_learned",JSON.stringify(learned));
+    localStorage.setItem("scratchGPT_learned", JSON.stringify(learned));
   }
 }
 
+// Voice output
 function speak(text){
   const s = new SpeechSynthesisUtterance(text);
   speechSynthesis.speak(s);
 }
+
+// Send button click
+sendBtn.addEventListener("click", () => {
+  const question = q.value.trim();
+  if(question){
+    userMsg(question);
+    aiReply(question);
+    q.value = "";
+  }
+});
+
+// Enter key works too
+q.addEventListener("keydown", e=>{
+  if(e.key === "Enter" && q.value.trim()){
+    const question = q.value.trim();
+    userMsg(question);
+    aiReply(question);
+    q.value = "";
+  }
+});
 </script>
+
 </body>
 </html>
