@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ScratchGPT</title>
+<style>
+body{background:#0f172a;font-family:Arial;color:white;display:flex;justify-content:center;align-items:center;height:100vh}
+#chat{width:400px;background:#020617;border-radius:14px;padding:15px;box-shadow:0 0 25px black}
+#msgs{height:340px;overflow-y:auto;margin-bottom:10px}
+.msg{margin:8px 0;line-height:1.4}
+.user{color:#38bdf8}
+.bot{color:#a3e635}
+input{width:100%;padding:10px;border:none;border-radius:8px}
+</style>
+</head>
+<body>
+<div id="chat">
+  <div id="msgs">
+    <div class="msg bot">🤖 Hello! I am ScratchGPT.</div>
+  </div>
+  <input id="q" placeholder="Ask anything about Scratch..." />
+</div>
+
+<script>
+const q = document.getElementById("q");
+const msgs = document.getElementById("msgs");
+let learned = JSON.parse(localStorage.getItem("scratchGPT_learned")||"{}");
+
+// Step-by-step examples
+const stepExamples = {
+  "Variables":["1️⃣ Click Variables category","2️⃣ Click 'Make a Variable'","3️⃣ Name it","4️⃣ Use it in your project"],
+  "Motion_Blocks":["1️⃣ Click Motion category","2️⃣ Drag 'move 10 steps'","3️⃣ Attach it to an event"],
+  "Control":["1️⃣ Drag loop blocks","2️⃣ Attach to events","3️⃣ Add inner actions"],
+  "Broadcast":["1️⃣ Drag broadcast block","2️⃣ Set message name","3️⃣ Attach to sprite"],
+  "Cloning":["1️⃣ Use 'create clone' block","2️⃣ Use 'when I start as clone' to define behavior"]
+};
+
+q.addEventListener("keydown", e=>{
+  if(e.key==="Enter" && q.value.trim()){
+    const question = q.value.trim();
+    userMsg(question);
+    aiReply(question);
+    q.value="";
+  }
+});
+
+function add(type,text){
+  const d=document.createElement("div");
+  d.className="msg "+type;
+  d.innerHTML=text;
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function userMsg(text){ add("user","👤 "+text); }
+function botMsg(text){ add("bot","🤖 "+text); }
+
+function detectTopic(q){
+  q = q.toLowerCase();
+  const map = { "variable":"Variables", "broadcast":"Broadcast", "clone":"Cloning",
+                "loop":"Control", "motion":"Motion_Blocks", "event":"Events", 
+                "operator":"Operators", "sensing":"Sensing", "pen":"Pen" };
+  for(let k in map) if(q.includes(k)) return map[k];
+  return null;
+}
+
+async function fetchWiki(topic){
+  const res = await fetch(`/api/wiki?q=${topic}`);
+  const data = await res.json();
+  return data.text;
+}
+
+function buildAnswer(text){ return text.split(".").slice(0,4).join(". ") + "."; }
+
+function enhancedAnswer(topic, answerText){
+  let html = `<b>📘 Answer:</b> ${answerText}<br>`;
+  if(stepExamples[topic]){
+    html += `<b>Step-by-step:</b><ul>`;
+    stepExamples[topic].forEach(s=>html+=`<li>${s}</li>`);
+    html+="</ul>";
+  }
+  return html;
+}
+
+async function aiReply(question){
+  for(let key in learned){
+    if(question.toLowerCase().includes(key)){
+      botMsg(`[Learned] ${learned[key]}`);
+      speak(learned[key]);
+      return;
+    }
+  }
+
+  const topic = detectTopic(question);
+  if(!topic){ botMsg("I couldn't identify the Scratch topic."); return; }
+
+  botMsg("Searching Scratch Wiki...");
+  const wikiText = await fetchWiki(topic);
+  if(!wikiText){ botMsg("No information found."); return; }
+
+  const answerText = buildAnswer(wikiText);
+  const html = enhancedAnswer(topic, answerText);
+  botMsg(html);
+  speak(answerText);
+
+  if(!learned[topic.toLowerCase()]){
+    learned[topic.toLowerCase()] = html;
+    localStorage.setItem("scratchGPT_learned",JSON.stringify(learned));
+  }
+}
+
+function speak(text){
+  const s = new SpeechSynthesisUtterance(text);
+  speechSynthesis.speak(s);
+}
+</script>
+</body>
+</html>
